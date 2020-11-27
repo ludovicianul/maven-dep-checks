@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# This script will list ALL dependencies used by the project
+
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_all.csv
+
+echo -e "\nSearching dependencies..."
+
+mvn dependency:list |  # list all
+    sed -ne s/..........// -e /patterntoexclude/d -e s/:compile//p -e s/:runtime//p | # exclude dep scope
+    sed 's/:/,/g' | #replace : with , to be able to easily import in csv
+    sort | # sort
+    uniq | # remove duplicates
+    tee dependencies_all # print on console and file
+echo 'groupId,artifactId,type,version' > dependencies_all.csv
+
+echo -e "\nDependencies list created!"
+
+cat dependencies_all >> dependencies_all.csv
+
+rm -f dependencies_all
+
+echo -e "\nDONE! Please check ${bold}dependencies_all.csv"

@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Script that will check for dependencies declared multiple times in the same pom.xml
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_duplicates.csv
+
+echo "Searching dependencies..."
+
+mvn dependency:analyze-duplicate | #analyze if there are duplicates
+    grep  ") @ \|[[:blank:]]o " | # remove unimportant info
+    sed 's/^.*\(@.*\).*---/\1/' | # search for the component name
+    sed -e 's/[[:blank:]]\{1,\}o//' | # remove blank spaces
+    sed -Ee 's/\[INFO\] / /' | # remove INFO
+    sed 's/:/,/g' | # replace : with ,
+    tee dependencies_duplicates # print to console and file
+
+echo -e "\nDependencies list created!"
+
+echo 'groupId,artifactId,type,component' > dependencies_duplicates.csv
+component=1;
+
+while read p; do
+  if [ ${p:0:1} == '@' ]; then
+    component=$p
+    echo "Analyzing component $component"
+  elif [ ${p:0:1} != '[' ]; then
+    echo "Found duplicate $p"
+    echo "$p,$component" >> dependencies_duplicates.csv
+  fi
+done < dependencies_duplicates
+
+echo -e "\nFinish creating duplicates list!"
+
+rm -f dependencies_duplicates
+
+echo -e "\nDONE! Please check ${bold}dependencies_duplicates.csv"

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#This script will search for multiple versions of the same dependency. The first column of the output is the number of times (independent of the version) that dependency was found
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_mixed_versions.txt
+
+echo "Searching dependencies..."
+
+mvn dependency:list -Dsort=true | # list all dependencies
+  grep "^\[INFO\]    " |          # search for the dependencies list only
+  awk '{print $2}' |              # remove INFO prefix
+  cut -f1-4 -d: |                 # remove the dep scope
+  sort |                          # sort
+  uniq |                          # remove duplicates
+  cut -f1-3 -d: |                 # remove the version
+  uniq -c |                       # count
+  grep -v '^ *1 ' |               # remove the ones that are used once
+  tee dependencies_mixed_versions.txt   # output to both file and console
+
+echo -e "\nDependencies list created!"
+
+echo -e "\nDONE! Please check ${bold}dependencies_mixed_versions.txt${normal} for details."
+echo "In order to check which versions are causing issues please run: ${bold}mvn dependency:tree -Dincludes=DEPENDENCY"

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#This script will search for multiple versions of the same dependency. The first column of the output is the number of times (independent of the version) that dependency was found
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_usage.csv
+rm -f dependencies_usage_temp
+
+echo "Searching for imports..."
+
+find . -type f -name "*.java" -print0 | #search recursively and filter by .java
+  xargs -I {} -0 grep -H "^import" "{}" | # identify all import lines
+  sed "s/.*\///g" | # replace all package information
+  sed "s/import //g" | # remove the word "import"
+  sed "s/static //g" >> imports.txt  #remove the word "static" from static imports and output to file
+
+echo -e "\nImports identified!"
+echo -e "Checking usage..."
+
+echo "library,no of files" > dependencies_usage.csv
+
+while read p; do
+ arr=(${p//./ })
+ echo "${arr[0]}.${arr[1]}.${arr[2]}" >> dependencies_usage_temp
+done < imports.txt
+
+echo -e "\nFinish checking imports"
+echo -e "\nCheking usage..."
+
+cat dependencies_usage_temp | uniq | awk -F":" '{a[$2]+=1;}END{for(i in a)print i","a[i];}' >> dependencies_usage.csv
+
+rm -f imports.txt
+rm -f dependencies_usage_temp
+
+echo -e "\nDONE! PLease check ${bold}dependencies_usage.csv"

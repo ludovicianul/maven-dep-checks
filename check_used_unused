@@ -1,0 +1,40 @@
+#!/bin/bash
+
+#This script will search for multiple versions of the same dependency. The first column of the output is the number of times (independent of the version) that dependency was found
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_used_unused.csv
+
+echo "Searching dependencies..."
+
+mvn dependency:analyze -Dsort=true | # list all deps
+  grep "^\[WARNING\]\(    \| Used \| Unused \)\|) @" |          # grep for the deps list only
+  sed 's/^.*\(@.*\).*---/\1/' |   # get component name
+  uniq | # remove duplicates
+  sed -Ee 's/\[WARNING\] //' |                 # removes the WARNING prefix
+  sed 's/:/,/g' | # replace : with ,
+  tee dependencies_used_unused   #output to both file and console
+
+echo -e "\nDependencies list created!"
+
+echo 'groupId,artifactId,type,version,scope,component,status' > dependencies_used_unused.csv
+used_unused='Used'
+component=''
+
+while read p; do
+  if [ ${p:0:2} == "Us" ]; then
+    used_unused='Used undeclared'
+  elif [ ${p:0:2} == "Un" ]; then
+    used_unused='Unused declared'
+  elif [ ${p:0:1} == '@' ]; then
+    component=$p
+    echo "Analyzing component $component"
+  else
+    echo "$p,$component,$used_unused" >> dependencies_used_unused.csv
+  fi
+done < dependencies_used_unused
+
+rm -f dependencies_used_unused
+
+echo -e "\nDONE! Please check ${bold}dependencies_used_unused.csv"

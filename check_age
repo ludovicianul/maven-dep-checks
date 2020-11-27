@@ -1,0 +1,61 @@
+#!/bin/bash
+
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+rm -f dependencies_all.csv
+
+echo "Searching dependencies..."
+
+mvn dependency:list |  # list all
+    sed -ne s/..........// -e /patterntoexclude/d -e s/:compile//p -e s/:runtime//p | # exclude dep scope
+    sed 's/:/,/g' | #replace : with , to be able to easily import in csv
+    sort | # sort
+    uniq | # remove duplicate
+    tee dependencies_all # print on console and file
+
+echo 'groupId,artifactId,type,current_version,current_version_date,latest_version,latest_version_date,age' > dependencies_age.csv
+
+echo -e "\nDependencies list created!"
+echo "Checking for latest versions..."
+
+while read p; do
+ arr=(${p//,/ })
+ sleep 1s
+
+ #query the current version
+ echo -e "Querying for ${arr[0]}:${arr[1]}:${arr[3]}..."
+ query_to_central_current=`curl -s "http://search.maven.org/solrsearch/select?q=g:%22${arr[0]}%22+AND+a:%22${arr[1]}%22+AND+v:%22${arr[3]}%22&rows=20&wt=json"`
+ current_timestamp=`echo $query_to_central_current | jq --raw-output '.response.docs[0].timestamp'`
+
+ if [ "$(uname)" == "Darwin" ]; then
+    # Mac OS X platform
+     current_date=`date -j -f %s  $(($current_timestamp/1000)) '+%d/%m/%Y'`
+  elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+    # GNU/Linux platform
+     current_date=`date -d @$(($current_timestamp/1000)) '+%d/%m/%Y'`
+  fi
+
+ #query the latest version
+ echo -e "Querying for ${arr[0]}:${arr[1]} for latest version..."
+ query_to_central_latest=`curl -s "http://search.maven.org/solrsearch/select?q=g:%22${arr[0]}%22+AND+a:%22${arr[1]}%22&core=gav&wt=json"`
+ latest_timestamp=`echo $query_to_central_latest | jq --raw-output '.response.docs[0].timestamp'`
+
+ if [ "$(uname)" == "Darwin" ]; then
+      latest_date=`date -j -f %s  $(($latest_timestamp/1000)) '+%d/%m/%Y'`
+ elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+      latest_date=`date -d @$(($latest_timestamp/1000)) '+%d/%m/%Y'`
+ fi
+
+ latest_version=`echo $query_to_central_latest | jq --raw-output '.response.docs[0].v'`
+ #we computer the difference in months now
+ diff_in_months_raw=$((($latest_timestamp-$current_timestamp)/(86400*1000*30)))
+ diff_in_months=`printf '%0.2f' $diff_in_months_raw`
+
+ echo "${arr[0]},${arr[1]},${arr[2]},${arr[3]},$current_date,$latest_version,$latest_date,$diff_in_months" >> dependencies_age.csv
+done < dependencies_all
+
+echo -e "\nFinished checking on maven central!"
+rm -f dependencies_all
+
+echo -e "\nDONE! Please check ${bold}dependencies_age.csv"
