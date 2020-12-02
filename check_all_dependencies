@@ -11,6 +11,10 @@ echo -e "\nSearching dependencies..."
 
 mvn dependency:list |  # list all
     sed -ne s/..........// -e /patterntoexclude/d -e s/:compile//p -e s/:runtime//p | # exclude dep scope
+    sed "s/ -- module.* //g" | # remove -- module ...
+    sed "s/\[auto\]//g" | # remove [auto]
+    sed "s/(auto)//g" | # remove (auto)
+    sed "s/(optional).*//g" | # remove (optional)
     sed 's/:/,/g' | #replace : with , to be able to easily import in csv
     sort | # sort
     uniq | # remove duplicates
